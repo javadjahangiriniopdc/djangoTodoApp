@@ -1,0 +1,184 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- Bootstrap CSS -->
+    <link href="{% static 'core/css/bootstrap.min.css' %}" rel="stylesheet">
+    <title>Django ajax TODO list</title>
+</head>
+<body>
+<div class="container mt-5">
+
+    <form class="row mt-5 pt-5" id="form">
+        <div class="col-12 col-lg-6 offset-lg-2">
+            <div class="input-group">
+                <input type="text" class="form-control" id="todo_name" placeholder="Add a todo" required>
+                <button type="submit" class="text-white btn btn-info">Submit</button>
+            </div>
+        </div>
+    </form>
+
+    <div class="row my-5">
+        <div class="col-12 col-lg-6 offset-lg-2">
+            <ul class="list-group">
+                <!-- List of todos goes here -->
+            </ul>
+        </div>
+    </div>
+
+</div>
+
+<script src="{% static 'core/js/jquery-3.6.0.min.js' %}"></script>
+<script src="{% static 'core/js/bootstrap.bundle.min.js' %}"></script>
+<script>
+    $(document).ready(function () {
+
+            var edititem = null;
+
+            $.ajax({
+                url: '/todo-list/',
+                type: 'GET',
+                dataType: 'json',
+            }).done(function (response) {
+                console.log(response);
+
+                for (var i in response.todos) {
+                    var todo = `<span>${response.todos[i].name}</span>`
+                    if (response.todos[i].completed) {
+                        var todo = `<span><del>${response.todos[i].name}</del></span>`
+                    }
+
+                    var item = `
+                              <li class="list-group-item d-flex justify-content-between">
+                                ${todo}
+                                <div>
+                                  <button id="edit" class="btn btn-success btn-sm" type="submit">Edit</button>
+                                  <button id="delete" class="btn btn-danger btn-sm" type="submit">Delete</button>
+                                </div>
+                              </li>
+                                `
+                    $('.list-group').append(item) // append the new item to the <ul> tag
+                }
+            })
+
+            $('#form').submit(function (e) {
+                e.preventDefault();
+                var url = '/todo-create/'
+
+                var data = {
+                    todo_name: $('#todo_name').val()
+                }
+
+                if (edititem != null) {
+
+                    var url = '/todo-edit/'
+                    var data = {
+                        todo_name: edititem.children().first().text(),
+                        todo_name_new: $('#todo_name').val()
+                    }
+                    console.log('todo_name:', edititem.children().first().text(),
+                        ' ,  todo_name_new:', $('#todo_name').val());
+                }
+
+
+                $.ajax({
+                    url: url,
+                    type: 'POST',
+                    data: data,
+                }).done(
+                    function (response) {
+                        console.log(response);
+                        if (response.status == 'error')
+                            alert('todos must have unique')
+                        else if (response.status == 'created') {
+
+                            var item = `
+                              <li class="list-group-item d-flex justify-content-between"><span>${response.todo_name}</span><div>
+                                  <button id="edit" class="btn btn-success btn-sm" type="submit">Edit</button>
+                                  <button id="delete" class="btn btn-danger btn-sm" type="submit">Delete</button>
+                                </div>
+                              </li>
+                                `
+                            $('.list-group').append(item) // append the new item to the <ul> tag
+                        } else if (response.status == 'updated') {
+                            edititem.children().first().text(response.todo_name_new)
+                            edititem = null
+
+                        }
+
+                    })
+                $(this).trigger('reset')
+
+
+            })
+
+            $('ul').on('click', 'li', function () {
+                    var todo_name = $(this).children().first().text();
+                    console.log(todo_name);
+                    var span_tag = $(this).children().first();
+                    console.log(span_tag)
+                    var completed = span_tag.children().length;
+                    if (!completed)
+                        completed = 1
+                    else
+                        completed = 0
+
+                    console.log(completed);
+
+                    $.ajax({
+                        url: '/todo-edit/',
+                        type: 'POST',
+                        data: {
+                            todo_name: todo_name,
+                            completed: completed
+                        }
+                    }).done(function (response) {
+                        console.log(response)
+                        if (response.status == 'updated' & completed) {
+                            span_tag.empty()
+                            span_tag.append(`<del>${todo_name}</del>`)
+                        } else if (response.status == 'updated' & !completed) {
+                            span_tag.remove($('del'))
+                            span_tag.text(todo_name)
+                        }
+
+                    })
+
+                }
+            ).on('click', '#edit', function (event) {
+                console.log('click edit ...')
+                event.stopPropagation();
+                var li_tag = $(this).parent().parent()
+                edititem = li_tag;
+                $('#todo_name').val(edititem.children().first().text())
+
+            }).on('click', '#delete', function (event) {
+                event.stopPropagation()
+                var url = '/todo-delete/'
+                var li_tag = $(this).parent().parent()
+                $.ajax({
+                    url: url,
+                    type: 'POST',
+                    data: {
+                        todo_name: li_tag.children().first().text()
+                    },
+                }).done(function (response) {
+                    console.log(response)
+                    if(response.status=='deleted'){
+                        li_tag.remove()
+                    }
+                })
+            })
+
+
+        }
+    )
+
+
+</script>
+</body>
+</html>
